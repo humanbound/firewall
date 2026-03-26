@@ -211,9 +211,9 @@ The orchestrator creates two instances — one for attack detection, one for ben
 
 ```bash
 # Train with default SetFit model
-hb firewall train --model detectors/setfit_classifier.py
+hb firewall train
 
-# Train with your own model
+# Train with a custom model
 hb firewall train --model detectors/my_model.py
 
 # Evaluate a saved model
@@ -311,7 +311,7 @@ firewall.hbfw
   |- weights.npz     # classifier weights (defined by your AgentClassifier)
 ```
 
-The weights format depends on your `AgentClassifier` implementation. Only load `.hbfw` files from trusted sources.
+The default SetFit classifier uses [safetensors](https://huggingface.co/docs/safetensors) — no code execution risk. Custom classifiers define their own weight format.
 
 ## EvalResult
 
