@@ -15,14 +15,12 @@ Usage:
 
 ST_MODEL = "all-MiniLM-L6-v2"
 MAX_EXAMPLES = 60
-VAL_SPLIT = 0.2
 
 # Workaround: the orchestrator creates two AgentClassifier instances (attack + benign)
 # expecting two independent models. SetFit trains a single binary model that handles
 # both roles — the benign instance reuses the attack instance's model with the
 # opposite probability interpretation. The shared state avoids training twice.
 _shared_model = None
-_shared_metrics = None
 
 
 def _patch_compat():
@@ -40,7 +38,6 @@ class AgentClassifier:
         self.model_name = model_name
         self._model = None
         self._model_dir = None
-        self.metrics = None
 
     def train(self, texts, context=None):
         global _shared_model, _shared_metrics
@@ -48,7 +45,6 @@ class AgentClassifier:
         if self.name == "benign":
             if _shared_model is not None:
                 self._model = _shared_model
-                self.metrics = _shared_metrics
             return
 
         _patch_compat()
@@ -56,9 +52,7 @@ class AgentClassifier:
         from setfit import SetFitModel, Trainer, TrainingArguments
         from sentence_transformers import SentenceTransformer
         from sklearn.linear_model import LogisticRegression
-        from sklearn.metrics import precision_score, recall_score, f1_score
         from datasets import Dataset
-        import random
 
         pos = texts[:MAX_EXAMPLES]
         neg = (context or {}).get("all_benign_texts", [])[:MAX_EXAMPLES]
@@ -66,21 +60,10 @@ class AgentClassifier:
         if len(pos) < 5 or len(neg) < 5:
             return
 
-        # 80/20 stratified split
-        random.seed(42)
-        random.shuffle(pos)
-        random.shuffle(neg)
-
-        val_pos_n = max(1, int(len(pos) * VAL_SPLIT))
-        val_neg_n = max(1, int(len(neg) * VAL_SPLIT))
-
-        train_texts = pos[val_pos_n:] + neg[val_neg_n:]
-        train_labels = [1] * (len(pos) - val_pos_n) + [0] * (len(neg) - val_neg_n)
-
-        val_texts = pos[:val_pos_n] + neg[:val_neg_n]
-        val_labels = [1] * val_pos_n + [0] * val_neg_n
-
-        train_ds = Dataset.from_dict({"text": train_texts, "label": train_labels})
+        ds = Dataset.from_dict({
+            "text": pos + neg,
+            "label": [1] * len(pos) + [0] * len(neg),
+        })
 
         st = SentenceTransformer(self.model_name)
         self._model = SetFitModel(model_body=st, model_head=LogisticRegression())
@@ -88,21 +71,11 @@ class AgentClassifier:
         trainer = Trainer(
             model=self._model,
             args=TrainingArguments(batch_size=16, num_epochs=1, num_iterations=20),
-            train_dataset=train_ds,
+            train_dataset=ds,
         )
         trainer.train()
 
-        # Validation metrics on holdout
-        val_preds = self._model.predict(val_texts).tolist()
-        self.metrics = {
-            "val_samples": len(val_labels),
-            "precision": round(precision_score(val_labels, val_preds, zero_division=0), 4),
-            "recall": round(recall_score(val_labels, val_preds, zero_division=0), 4),
-            "f1": round(f1_score(val_labels, val_preds, zero_division=0), 4),
-        }
-
         _shared_model = self._model
-        _shared_metrics = self.metrics
 
     def predict(self, text, context=""):
         if self._model is None:

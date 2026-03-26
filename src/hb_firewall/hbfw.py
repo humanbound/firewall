@@ -317,9 +317,14 @@ class HBFW:
         permitted_texts = [i.lower() for i in (permitted_intents or [])]
         benign_texts = qa_texts if qa_texts else permitted_texts
 
-        # Curated subsets: stratified, high-quality examples for few-shot training
         curated_attack = _curate_attack_logs(logs)
         curated_benign = _curate_benign_logs(logs, fallback=permitted_texts)
+
+        # Raw logs for conversation-level validation
+        adv_logs = [l for l in logs if "adversarial" in (l.get("test_category") or "")]
+        qa_pass_logs = [l for l in logs
+                        if "adversarial" not in (l.get("test_category") or "")
+                        and l.get("result") == "pass"]
 
         return {
             "attack_texts": attack_texts,
@@ -329,6 +334,8 @@ class HBFW:
             "restricted_texts": restricted_texts,
             "permitted_texts": permitted_texts,
             "has_qa": self._has_qa,
+            "val_adversarial_logs": adv_logs,
+            "val_benign_logs": qa_pass_logs,
             "stats": {
                 "attack_samples": len(attack_texts),
                 "benign_samples": len(benign_texts),
@@ -362,11 +369,93 @@ class HBFW:
             "has_qa_data": data.get("has_qa", False),
         }
 
-        # Capture validation metrics from detectors (if they report them)
-        if hasattr(self.clf_attack, "metrics") and self.clf_attack.metrics:
-            self._performance["validation"] = self.clf_attack.metrics
+        # Conversation-level validation: replay logs through Tier 2
+        adv_logs = data.get("val_adversarial_logs", [])
+        ben_logs = data.get("val_benign_logs", [])
+        if adv_logs or ben_logs:
+            self._performance["validation"] = self._validate_conversations(
+                adv_logs, ben_logs)
 
         return self._performance
+
+    def _validate_conversations(self, adversarial_logs, benign_logs,
+                                 min_turns=3):
+        """Replay conversations through Tier 2 and report catch/allow rates.
+
+        Adversarial (all pass+fail): Tier 2 should BLOCK at some point.
+        Benign (passed QA only): Tier 2 should ALLOW all turns.
+        Tier 2 only active from min_turns onward.
+        """
+        adv_fail_caught, adv_fail_total = 0, 0
+        adv_pass_caught, adv_pass_total = 0, 0
+        benign_correct, benign_blocked, benign_total = 0, 0, 0
+
+        for log in adversarial_logs:
+            conv = log.get("conversation", [])
+            if len(conv) < min_turns:
+                continue
+
+            is_fail = log.get("result") == "fail"
+            if is_fail:
+                adv_fail_total += 1
+            else:
+                adv_pass_total += 1
+
+            # Replay: build conversation progressively, check from min_turns
+            caught = False
+            for i in range(min_turns, len(conv)):
+                turns = [{"u": t.get("u", ""), "a": t.get("a", "")}
+                         for t in conv[:i + 1]]
+                r = self.classify(turns)
+                if r["decision"] == "BLOCK":
+                    caught = True
+                    break
+
+            if caught:
+                if is_fail:
+                    adv_fail_caught += 1
+                else:
+                    adv_pass_caught += 1
+
+        for log in benign_logs:
+            conv = log.get("conversation", [])
+            if len(conv) < min_turns:
+                continue
+
+            benign_total += 1
+            was_blocked = False
+
+            for i in range(min_turns, len(conv)):
+                turns = [{"u": t.get("u", ""), "a": t.get("a", "")}
+                         for t in conv[:i + 1]]
+                r = self.classify(turns)
+                if r["decision"] == "BLOCK":
+                    was_blocked = True
+                    break
+
+            if was_blocked:
+                benign_blocked += 1
+            else:
+                benign_correct += 1
+
+        return {
+            "adversarial_fail": {
+                "caught": adv_fail_caught,
+                "total": adv_fail_total,
+                "rate": round(adv_fail_caught / adv_fail_total, 4) if adv_fail_total else None,
+            },
+            "adversarial_pass": {
+                "caught": adv_pass_caught,
+                "total": adv_pass_total,
+                "rate": round(adv_pass_caught / adv_pass_total, 4) if adv_pass_total else None,
+            },
+            "benign": {
+                "correct": benign_correct,
+                "blocked": benign_blocked,
+                "total": benign_total,
+                "rate": round(benign_correct / benign_total, 4) if benign_total else None,
+            },
+        }
 
     def classify(self, conversation: list[dict]) -> dict:
         ctx_text = format_last_n_turns(conversation, n=5)
