@@ -150,15 +150,7 @@ hb firewall train --model detectors/setfit_classifier.py
 - **Attack data:** Stratified by `fail_category` (preserving the distribution of attack types), sorted by severity, last turns from each conversation
 - **Benign data:** Stratified by `gen_category` (uniform across user personas), sorted by confidence
 
-**Performance (tested on a banking agent):**
-
-| Metric | Result |
-|--------|--------|
-| Domain-specific benign queries allowed (Banking77, 3,076 samples) | **96%** |
-| Attacks caught (deepset + neuralchemy, 612 attack samples) | **94%** |
-| False block rate on domain queries | **4%** |
-
-Tier 2 is complementary to Tier 1 — DeBERTa catches generic single-turn injections, SetFit catches agent-specific multi-turn patterns and fast-tracks legitimate requests without LLM cost.
+Tier 2 is complementary to Tier 1 — DeBERTa catches generic single-turn injections, SetFit catches agent-specific patterns and fast-tracks legitimate requests without LLM cost.
 
 **Tier 2 improves with usage.** The initial model is trained on synthetic test data. As production traffic flows through Tier 3 (LLM judge), those verdicts become training data for the next Tier 2 training cycle. More usage → better Tier 2 → fewer Tier 3 calls → lower cost.
 
