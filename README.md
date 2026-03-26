@@ -236,6 +236,10 @@ hb firewall train --model detectors/my_model.py
 
 # Show model info
 hb firewall show firewall.hbfw
+
+# Import external red-teaming results (PromptFoo, PyRIT)
+hb firewall train --import pyrit_results.json
+hb firewall train --import results.json:promptfoo
 ```
 
 ## Tier 3: LLM Judge
