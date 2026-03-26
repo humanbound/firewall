@@ -216,13 +216,31 @@ class Firewall:
 
     def evaluate(
         self,
-        user_prompt: str,
+        user_prompt_or_conversation,
         agent_prompt: str = "",
         session_turns: Optional[List[Turn]] = None,
         session_id: str = "",
         timeout: Optional[int] = None,
     ) -> EvalResult:
-        """Evaluate a user prompt through all tiers."""
+        """Evaluate a user prompt through all tiers.
+
+        Accepts either:
+            fw.evaluate("user prompt", session_turns=[...])
+
+        Or an OpenAI-format conversation (last user message is evaluated):
+            fw.evaluate([
+                {"role": "user", "content": "hi"},
+                {"role": "assistant", "content": "Hello!"},
+                {"role": "user", "content": "prompt to evaluate"},
+            ])
+        """
+        # Parse input: conversation list or single prompt
+        if isinstance(user_prompt_or_conversation, list):
+            user_prompt, session_turns, agent_prompt = self._parse_conversation(
+                user_prompt_or_conversation)
+        else:
+            user_prompt = user_prompt_or_conversation
+
         if self._config.mode == "passthrough":
             return EvalResult(
                 verdict=Verdict.PASS, category=Category.NONE,
@@ -278,6 +296,37 @@ class Firewall:
         return self._result(Verdict.REVIEW, Category.UNCERTAIN,
                             "No LLM judge configured.", t_start,
                             session_id, user_prompt, tier=3)
+
+    def _parse_conversation(self, messages: list) -> tuple:
+        """Parse OpenAI-format conversation into (user_prompt, session_turns, agent_prompt).
+
+        Accepts: [{"role": "user"|"assistant", "content": "..."}]
+        The last user message is the prompt being evaluated.
+        """
+        turns = []
+        current_user = ""
+        current_assistant = ""
+
+        for msg in messages:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+
+            if role == "user":
+                if current_user:
+                    turns.append(Turn(user=current_user, assistant=current_assistant))
+                    current_assistant = ""
+                current_user = content
+            elif role == "assistant":
+                current_assistant = content
+
+        # Last user message = prompt being evaluated
+        user_prompt = current_user or ""
+        agent_prompt = ""
+
+        # Everything before the last user message = session turns
+        session_turns = turns if turns else None
+
+        return user_prompt, session_turns, agent_prompt
 
     def _build_conversation(self, session_turns, user_prompt, agent_prompt):
         """Build conversation list for scope classifier."""

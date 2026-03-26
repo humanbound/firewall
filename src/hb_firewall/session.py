@@ -52,7 +52,7 @@ class Session:
 
         # Evaluate with session context
         result = self._firewall.evaluate(
-            user_prompt=user_prompt,
+            user_prompt,
             agent_prompt=agent_prompt,
             session_turns=self.turns,
             session_id=self.id,
