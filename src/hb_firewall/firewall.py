@@ -249,8 +249,9 @@ class Firewall:
                                     t_start, session_id, user_prompt, tier=1,
                                     attack_probability=score)
 
-        # --- Tier 2: Trained classifiers ---
-        if self._scope_classifier:
+        # --- Tier 2: Agent-specific classifiers (requires conversation context) ---
+        n_turns = len(session_turns) if session_turns else 0
+        if self._scope_classifier and n_turns >= self._config.tier2_min_turns:
             conversation = self._build_conversation(session_turns, user_prompt, agent_prompt)
             result = self._scope_classifier.classify(conversation)
             decision = result.get("decision")

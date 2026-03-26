@@ -80,6 +80,7 @@ class AgentConfig:
     timeout: int = 5
     mode: str = "block"                 # block | log | passthrough
     session_window: int = 5             # number of turns for context
+    tier2_min_turns: int = 3            # minimum turns before Tier 2 activates
     risk_tolerance: str = "medium"      # high | medium | low
     temperature: float = 0.0
 

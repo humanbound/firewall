@@ -34,6 +34,7 @@ def load_config(path: Union[str, Path]) -> AgentConfig:
         timeout=settings.get("timeout", 5),
         mode=settings.get("mode", "block"),
         session_window=settings.get("session_window", 5),
+        tier2_min_turns=settings.get("tier2_min_turns", 3),
         risk_tolerance=settings.get("risk_tolerance", "medium"),
         temperature=settings.get("temperature", 0.0),
         few_shots=data.get("few_shots", []),
