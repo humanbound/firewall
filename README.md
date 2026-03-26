@@ -217,7 +217,7 @@ hb firewall train
 hb firewall train --model detectors/my_model.py
 
 # Evaluate a saved model
-hb firewall eval firewall.hbfw
+hb firewall show firewall.hbfw
 
 # Test interactively
 hb firewall test firewall.hbfw --model detectors/setfit_classifier.py
