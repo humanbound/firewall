@@ -27,10 +27,14 @@ _shared_model = None
 def _patch_compat():
     """Pin compatibility: setfit 1.1.3 + transformers 5.x."""
     import transformers.training_args as ta
+
     if not hasattr(ta, "default_logdir"):
-        import os, datetime
+        import datetime
+        import os
+
         ta.default_logdir = lambda: os.path.join(
-            "runs", datetime.datetime.now().strftime("%b%d_%H-%M-%S"))
+            "runs", datetime.datetime.now().strftime("%b%d_%H-%M-%S")
+        )
 
 
 class AgentClassifier:
@@ -50,10 +54,10 @@ class AgentClassifier:
 
         _patch_compat()
 
-        from setfit import SetFitModel, Trainer, TrainingArguments
-        from sentence_transformers import SentenceTransformer
-        from sklearn.linear_model import LogisticRegression
         from datasets import Dataset
+        from sentence_transformers import SentenceTransformer
+        from setfit import SetFitModel, Trainer, TrainingArguments
+        from sklearn.linear_model import LogisticRegression
 
         pos = texts[:MAX_EXAMPLES]
         neg = (context or {}).get("all_benign_texts", [])[:MAX_EXAMPLES]
@@ -61,10 +65,12 @@ class AgentClassifier:
         if len(pos) < 5 or len(neg) < 5:
             return
 
-        ds = Dataset.from_dict({
-            "text": pos + neg,
-            "label": [1] * len(pos) + [0] * len(neg),
-        })
+        ds = Dataset.from_dict(
+            {
+                "text": pos + neg,
+                "label": [1] * len(pos) + [0] * len(neg),
+            }
+        )
 
         st = SentenceTransformer(self.model_name)
         self._model = SetFitModel(model_body=st, model_head=LogisticRegression())
@@ -96,7 +102,10 @@ class AgentClassifier:
         if self.name != "attack":
             return {}
 
-        import tempfile, os, json
+        import json
+        import os
+        import tempfile
+
         import numpy as np
 
         # Save SetFit model using its native format (safetensors)
@@ -124,8 +133,6 @@ class AgentClassifier:
             safe_key = "setfit_file_" + rel_path.replace("/", "__").replace(".", "_")
             result[safe_key] = np.void(model_files[rel_path])
 
-
-
         return result
 
     def load_weights(self, weights):
@@ -134,7 +141,10 @@ class AgentClassifier:
 
         _patch_compat()
 
-        import json, tempfile, os
+        import json
+        import os
+        import tempfile
+
         from setfit import SetFitModel
 
         manifest = json.loads(str(weights["setfit_manifest"]))
@@ -151,4 +161,3 @@ class AgentClassifier:
                 f.write(bytes(weights[safe_key]))
 
         self._model = SetFitModel.from_pretrained(model_dir)
-

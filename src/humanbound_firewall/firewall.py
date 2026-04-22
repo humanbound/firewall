@@ -9,31 +9,31 @@ Tier 2.2: Benign request detection (trained classifier, fast-tracks legitimate r
 Tier 3:   LLM-as-a-judge (deep contextual analysis for uncertain cases)
 """
 
+import concurrent.futures
 import re
 import time
-import threading
-import concurrent.futures
-import requests
 from pathlib import Path
-from typing import List, Optional, Union
 
-from .models import AgentConfig, EvalResult, Turn, Verdict, Category, VERDICT_MAP
+import requests
+
+from .cache import PromptCache
 from .config import load_config
 from .judge import build_system_prompt
-from .cache import PromptCache
-from .metrics import Metrics
 from .llm import Provider, ProviderIntegration, ProviderName, get_llm_streamer
+from .metrics import Metrics
+from .models import AgentConfig, Category, EvalResult, Turn, Verdict
 
 _INVISIBLE_CHARS = re.compile(
-    r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f'
-    r'\u200b-\u200f\u2028-\u2029\u202a-\u202e'
-    r'\u2060-\u2064\ufeff\ufff9-\ufffb]'
+    r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f"
+    r"\u200b-\u200f\u2028-\u2029\u202a-\u202e"
+    r"\u2060-\u2064\ufeff\ufff9-\ufffb]"
 )
 
 
 # ---------------------------------------------------------------------------
 # Attack detector interface (Tier 1)
 # ---------------------------------------------------------------------------
+
 
 class AttackDetector:
     """Single attack detector — local model or API endpoint."""
@@ -65,8 +65,9 @@ class AttackDetector:
                     "Tier 1 local detectors require the [tier1] extra. "
                     "Install with: pip install humanbound-firewall[tier1]"
                 ) from e
-            self._pipe = pipeline("text-classification", model=self._model_name,
-                                   truncation=True, max_length=512)
+            self._pipe = pipeline(
+                "text-classification", model=self._model_name, truncation=True, max_length=512
+            )
         result = self._pipe(prompt)[0]
         if result["label"] in ("INJECTION", "LABEL_1", "positive", "1"):
             return result["score"]
@@ -81,8 +82,8 @@ class AttackDetector:
 
         try:
             resp = requests.request(
-                self._method, self._endpoint,
-                headers=self._headers, json=payload, timeout=10)
+                self._method, self._endpoint, headers=self._headers, json=payload, timeout=10
+            )
             if resp.status_code == 200:
                 data = resp.json()
                 return self._extract_score(data)
@@ -117,8 +118,7 @@ class AttackDetectorEnsemble:
 
         scores = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.detectors)) as pool:
-            futures = {pool.submit(d.score, prompt, conversation): d
-                       for d in self.detectors}
+            futures = {pool.submit(d.score, prompt, conversation): d for d in self.detectors}
 
             attack_count = 0
             for future in concurrent.futures.as_completed(futures):
@@ -140,6 +140,7 @@ class AttackDetectorEnsemble:
 # Firewall
 # ---------------------------------------------------------------------------
 
+
 class Firewall:
     """Multi-tier firewall for AI agents.
 
@@ -150,9 +151,13 @@ class Firewall:
     Tier 3:   LLM-as-a-judge
     """
 
-    def __init__(self, config: AgentConfig, streamer=None,
-                 ensemble: AttackDetectorEnsemble = None,
-                 scope_classifier=None):
+    def __init__(
+        self,
+        config: AgentConfig,
+        streamer=None,
+        ensemble: AttackDetectorEnsemble = None,
+        scope_classifier=None,
+    ):
         self._config = config
         self._streamer = streamer
         self._ensemble = ensemble
@@ -163,11 +168,11 @@ class Firewall:
     @classmethod
     def from_config(
         cls,
-        config_path: Union[str, Path],
-        provider: Optional[Provider] = None,
-        model_path: Optional[Union[str, Path]] = None,
-        detector_script: Optional[Union[str, Path]] = None,
-        attack_detectors: Optional[list[dict]] = None,
+        config_path: str | Path,
+        provider: Provider | None = None,
+        model_path: str | Path | None = None,
+        detector_script: str | Path | None = None,
+        attack_detectors: list[dict] | None = None,
         consensus: int = 1,
     ) -> "Firewall":
         """Create a Firewall from configuration.
@@ -202,31 +207,33 @@ class Firewall:
         # Tier 2: Trained classifiers
         scope_classifier = None
         if model_path is not None:
-            from .hbfw import HBFW, load_model_class, load_hbfw
+            from .hbfw import HBFW, load_hbfw, load_model_class
 
             hbfw_config, hbfw_weights = load_hbfw(str(model_path))
 
             if not detector_script:
                 raise ValueError(
                     "Tier 2 model requires a detector script. "
-                    "Pass detector_script= to Firewall.from_config().")
+                    "Pass detector_script= to Firewall.from_config()."
+                )
 
             detector_cls = load_model_class(str(detector_script))
             scope_classifier = HBFW(
-                attack_detector=detector_cls("attack"),
-                benign_detector=detector_cls("benign"))
+                attack_detector=detector_cls("attack"), benign_detector=detector_cls("benign")
+            )
             scope_classifier.load(hbfw_config, hbfw_weights)
 
-        return cls(config=config, streamer=streamer, ensemble=ensemble,
-                   scope_classifier=scope_classifier)
+        return cls(
+            config=config, streamer=streamer, ensemble=ensemble, scope_classifier=scope_classifier
+        )
 
     def evaluate(
         self,
         user_prompt_or_conversation,
         agent_prompt: str = "",
-        session_turns: Optional[List[Turn]] = None,
+        session_turns: list[Turn] | None = None,
         session_id: str = "",
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
     ) -> EvalResult:
         """Evaluate a user prompt through all tiers.
 
@@ -243,15 +250,19 @@ class Firewall:
         # Parse input: conversation list or single prompt
         if isinstance(user_prompt_or_conversation, list):
             user_prompt, session_turns, agent_prompt = self._parse_conversation(
-                user_prompt_or_conversation)
+                user_prompt_or_conversation
+            )
         else:
             user_prompt = user_prompt_or_conversation
 
         if self._config.mode == "passthrough":
             return EvalResult(
-                verdict=Verdict.PASS, category=Category.NONE,
-                explanation="Passthrough mode.", latency_ms=0,
-                session_id=session_id, prompt=user_prompt,
+                verdict=Verdict.PASS,
+                category=Category.NONE,
+                explanation="Passthrough mode.",
+                latency_ms=0,
+                session_id=session_id,
+                prompt=user_prompt,
             )
 
         timeout = timeout or self._config.timeout
@@ -259,19 +270,31 @@ class Firewall:
 
         # --- Tier 0: Sanitization ---
         if _INVISIBLE_CHARS.search(user_prompt):
-            return self._result(Verdict.BLOCK, Category.VIOLATION,
-                                "Input contains non-visible control characters.",
-                                t_start, session_id, user_prompt, tier=0)
+            return self._result(
+                Verdict.BLOCK,
+                Category.VIOLATION,
+                "Input contains non-visible control characters.",
+                t_start,
+                session_id,
+                user_prompt,
+                tier=0,
+            )
 
         # --- Tier 1: Basic attack detection ensemble ---
         if self._ensemble:
             conversation_text = self._format_session(session_turns, user_prompt)
             is_attack, score = self._ensemble.evaluate(user_prompt, conversation_text)
             if is_attack:
-                return self._result(Verdict.BLOCK, Category.VIOLATION,
-                                    f"Tier 1: attack detected (p={score:.2f})",
-                                    t_start, session_id, user_prompt, tier=1,
-                                    attack_probability=score)
+                return self._result(
+                    Verdict.BLOCK,
+                    Category.VIOLATION,
+                    f"Tier 1: attack detected (p={score:.2f})",
+                    t_start,
+                    session_id,
+                    user_prompt,
+                    tier=1,
+                    attack_probability=score,
+                )
 
         # --- Tier 2: Agent-specific classifiers (requires conversation context) ---
         n_turns = len(session_turns) if session_turns else 0
@@ -281,27 +304,46 @@ class Firewall:
             decision = result.get("decision")
 
             if decision == "BLOCK":
-                return self._result(Verdict.BLOCK, Category.VIOLATION,
-                                    f"Tier 2.1: attack detected",
-                                    t_start, session_id, user_prompt, tier=2,
-                                    attack_probability=result.get("attack_probability", 0))
+                return self._result(
+                    Verdict.BLOCK,
+                    Category.VIOLATION,
+                    "Tier 2.1: attack detected",
+                    t_start,
+                    session_id,
+                    user_prompt,
+                    tier=2,
+                    attack_probability=result.get("attack_probability", 0),
+                )
 
             if decision == "ALLOW":
-                return self._result(Verdict.PASS, Category.NONE,
-                                    f"Tier 2.2: benign request",
-                                    t_start, session_id, user_prompt, tier=2)
+                return self._result(
+                    Verdict.PASS,
+                    Category.NONE,
+                    "Tier 2.2: benign request",
+                    t_start,
+                    session_id,
+                    user_prompt,
+                    tier=2,
+                )
 
             # ESCALATE (uncertain) → fall through to Tier 3
 
         # --- Tier 3: LLM judge ---
         if self._streamer:
-            return self._run_judge(user_prompt, agent_prompt, session_turns,
-                                    session_id, timeout, t_start)
+            return self._run_judge(
+                user_prompt, agent_prompt, session_turns, session_id, timeout, t_start
+            )
 
         # No Tier 3 available — return ESCALATE
-        return self._result(Verdict.REVIEW, Category.UNCERTAIN,
-                            "No LLM judge configured.", t_start,
-                            session_id, user_prompt, tier=3)
+        return self._result(
+            Verdict.REVIEW,
+            Category.UNCERTAIN,
+            "No LLM judge configured.",
+            t_start,
+            session_id,
+            user_prompt,
+            tier=3,
+        )
 
     def _parse_conversation(self, messages: list) -> tuple:
         """Parse OpenAI-format conversation into (user_prompt, session_turns, agent_prompt).
@@ -354,23 +396,39 @@ class Firewall:
         parts.append(f"User: {user_prompt}")
         return "\n".join(parts)
 
-    def _result(self, verdict, category, explanation, t_start, session_id,
-                prompt, tier=0, attack_probability=0.0):
+    def _result(
+        self,
+        verdict,
+        category,
+        explanation,
+        t_start,
+        session_id,
+        prompt,
+        tier=0,
+        attack_probability=0.0,
+    ):
         latency = int((time.time() - t_start) * 1000)
         self.metrics.record(verdict.value, category.value, latency)
         return EvalResult(
-            verdict=verdict, category=category, explanation=explanation,
-            latency_ms=latency, session_id=session_id, prompt=prompt,
-            tier=tier, attack_probability=attack_probability,
+            verdict=verdict,
+            category=category,
+            explanation=explanation,
+            latency_ms=latency,
+            session_id=session_id,
+            prompt=prompt,
+            tier=tier,
+            attack_probability=attack_probability,
         )
 
-    def _run_judge(self, user_prompt, agent_prompt, session_turns,
-                   session_id, timeout, t_start):
+    def _run_judge(self, user_prompt, agent_prompt, session_turns, session_id, timeout, t_start):
         """Run Tier 3 LLM judge with streaming and timeout."""
         try:
             base_prompt = self._cache.get_or_build(self._config)
-            system_prompt = (build_system_prompt(self._config, session_turns=session_turns)
-                              if session_turns else base_prompt)
+            system_prompt = (
+                build_system_prompt(self._config, session_turns=session_turns)
+                if session_turns
+                else base_prompt
+            )
             if agent_prompt:
                 system_prompt += f"\n## PROMPT TO WHICH THE USER RESPONDS:\n{agent_prompt}\n"
 
@@ -384,21 +442,35 @@ class Firewall:
             return result
 
         except TimeoutError:
-            return self._result(Verdict.REVIEW, Category.UNCERTAIN,
-                                "Evaluation timed out.", t_start,
-                                session_id, user_prompt, tier=3)
+            return self._result(
+                Verdict.REVIEW,
+                Category.UNCERTAIN,
+                "Evaluation timed out.",
+                t_start,
+                session_id,
+                user_prompt,
+                tier=3,
+            )
         except Exception as e:
-            return self._result(Verdict.REVIEW, Category.UNCERTAIN,
-                                f"Evaluation error: {str(e)[:200]}", t_start,
-                                session_id, user_prompt, tier=3)
+            return self._result(
+                Verdict.REVIEW,
+                Category.UNCERTAIN,
+                f"Evaluation error: {str(e)[:200]}",
+                t_start,
+                session_id,
+                user_prompt,
+                tier=3,
+            )
 
     def _stream_judge(self, system_prompt, user_prompt, timeout, session_id):
         """Stream LLM response and extract verdict from first token."""
         from .firewall_judge import stream_and_extract_verdict
-        return stream_and_extract_verdict(
-            self._streamer, system_prompt, user_prompt, timeout, session_id)
 
-    def reload_config(self, config_path: Union[str, Path]):
+        return stream_and_extract_verdict(
+            self._streamer, system_prompt, user_prompt, timeout, session_id
+        )
+
+    def reload_config(self, config_path: str | Path):
         self._config = load_config(config_path)
         self._cache.invalidate()
 
@@ -411,7 +483,8 @@ class Firewall:
 # Streaming judge extraction (extracted for testability)
 # ---------------------------------------------------------------------------
 
-def _extract_token(chunk) -> Optional[str]:
+
+def _extract_token(chunk) -> str | None:
     """Extract text from streaming chunk (handles OpenAI, Anthropic, Gemini formats)."""
     if hasattr(chunk, "choices") and chunk.choices:
         delta = chunk.choices[0].delta
@@ -460,9 +533,7 @@ def _provider_from_env() -> Provider:
     Legacy HB_FIREWALL_* names still work for 0.2.x (with a DeprecationWarning);
     they are removed in 0.3.
     """
-    provider_name = (_env(
-        "HUMANBOUND_FIREWALL_PROVIDER", "HB_FIREWALL_PROVIDER", ""
-    ) or "").lower()
+    provider_name = (_env("HUMANBOUND_FIREWALL_PROVIDER", "HB_FIREWALL_PROVIDER", "") or "").lower()
     api_key = _env("HUMANBOUND_FIREWALL_API_KEY", "HB_FIREWALL_API_KEY", "")
 
     if not api_key:

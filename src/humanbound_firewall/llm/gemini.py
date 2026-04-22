@@ -15,6 +15,7 @@ DEFAULT_TEMPERATURE = 0.0
 def _import_genai():
     try:
         import google.generativeai as genai
+
         return genai
     except ImportError as e:
         raise ImportError(
@@ -30,15 +31,17 @@ class LLMStreamer:
         genai.configure(api_key=provider["integration"]["api_key"])
         self.model = genai.GenerativeModel(provider["integration"]["model"])
 
-    def ping(self, system_p, user_p, max_tokens=DEFAULT_MAX_OUT_TOKENS,
-             temperature=DEFAULT_TEMPERATURE):
+    def ping(
+        self, system_p, user_p, max_tokens=DEFAULT_MAX_OUT_TOKENS, temperature=DEFAULT_TEMPERATURE
+    ):
         genai = _import_genai()
         max_tokens = min(max_tokens, ALLOWED_MAX_OUT_TOKENS)
         prompt = f"{system_p}\n{user_p}"
         return self.model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(
-                max_output_tokens=max_tokens, temperature=temperature,
+                max_output_tokens=max_tokens,
+                temperature=temperature,
             ),
             stream=True,
         )
@@ -56,12 +59,14 @@ class LLMPinger:
         return self.model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(
-                max_output_tokens=max_tokens, temperature=temperature,
+                max_output_tokens=max_tokens,
+                temperature=temperature,
             ),
         )
 
-    def ping(self, system_p, user_p, max_tokens=DEFAULT_MAX_OUT_TOKENS,
-             temperature=DEFAULT_TEMPERATURE):
+    def ping(
+        self, system_p, user_p, max_tokens=DEFAULT_MAX_OUT_TOKENS, temperature=DEFAULT_TEMPERATURE
+    ):
         retry_counter = 0
         max_tokens = min(max_tokens, ALLOWED_MAX_OUT_TOKENS)
         prompt = f"{system_p}\n{user_p}"
@@ -81,8 +86,12 @@ class LLMPinger:
 
 def _resolve(provider):
     if provider is None:
-        return {"integration": {"api_key": getenv("LLM_API_KEY", ""),
-                                "model": getenv("LLM_MODEL", "gemini-pro")}}
+        return {
+            "integration": {
+                "api_key": getenv("LLM_API_KEY", ""),
+                "model": getenv("LLM_MODEL", "gemini-pro"),
+            }
+        }
     if hasattr(provider, "model_dump"):
         return provider.model_dump()
     return provider

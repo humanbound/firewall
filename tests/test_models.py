@@ -2,13 +2,10 @@
 # Copyright (c) 2024-2026 Humanbound
 """Tests for data models."""
 
-import pytest
-
-from humanbound_firewall.models import EvalResult, Verdict, Category, VERDICT_MAP
+from humanbound_firewall.models import VERDICT_MAP, Category, EvalResult, Verdict
 
 
 class TestEvalResult:
-
     def test_blocked_property(self):
         r = EvalResult(verdict=Verdict.BLOCK, category=Category.VIOLATION)
         assert r.blocked is True
@@ -26,7 +23,6 @@ class TestEvalResult:
 
 
 class TestVerdictMap:
-
     def test_all_letters_mapped(self):
         for letter in ["P", "A", "B", "C", "D"]:
             assert letter in VERDICT_MAP

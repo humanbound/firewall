@@ -101,7 +101,14 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
-ignore = ["E501"]
+ignore = [
+    "E501",   # line length handled by formatter
+    "E402",   # allow module-level code before imports (used in compat shims)
+    "E741",   # allow "l" as variable name in data-pipeline loops
+    "B007",   # allow unused loop vars that document intent
+    "B904",   # raise-from chaining not uniformly applied in legacy code
+    "F841",   # locally-bound unused vars kept for clarity
+]
 
 [tool.mypy]
 python_version = "3.10"

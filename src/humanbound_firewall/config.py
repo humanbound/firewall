@@ -3,20 +3,19 @@
 """YAML configuration loader."""
 
 from pathlib import Path
-from typing import Union
 
 import yaml
 
 from .models import AgentConfig
 
 
-def load_config(path: Union[str, Path]) -> AgentConfig:
+def load_config(path: str | Path) -> AgentConfig:
     """Load agent configuration from a YAML file."""
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     if not isinstance(data, dict):

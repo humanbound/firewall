@@ -14,6 +14,7 @@ The rest of each provider's behaviour (retries, rate-limit handling,
 streaming iteration) is covered where it affects routing in
 ``tests/test_firewall.py``.
 """
+
 from __future__ import annotations
 
 import sys
@@ -44,6 +45,7 @@ def _provider(name: ProviderName, **kw) -> Provider:
 # ────────────────────────────────────────────────────────────────
 # OpenAI
 # ────────────────────────────────────────────────────────────────
+
 
 def test_openai_streamer_happy_path(monkeypatch):
     fake_openai = types.ModuleType("openai")
@@ -82,6 +84,7 @@ def test_openai_streamer_ping_forwards_args(monkeypatch):
 def test_openai_streamer_missing_dep_raises_actionable(monkeypatch):
     monkeypatch.setitem(sys.modules, "openai", None)
     from humanbound_firewall.llm.openai import LLMStreamer
+
     with pytest.raises(ImportError, match=r"humanbound-firewall\[openai\]"):
         LLMStreamer(_provider(ProviderName.OPENAI))
 
@@ -89,6 +92,7 @@ def test_openai_streamer_missing_dep_raises_actionable(monkeypatch):
 # ────────────────────────────────────────────────────────────────
 # Anthropic Claude
 # ────────────────────────────────────────────────────────────────
+
 
 def test_claude_streamer_happy_path(monkeypatch):
     fake = types.ModuleType("anthropic")
@@ -123,6 +127,7 @@ def test_claude_streamer_ping_forwards_args(monkeypatch):
 def test_claude_missing_dep_raises_actionable(monkeypatch):
     monkeypatch.setitem(sys.modules, "anthropic", None)
     from humanbound_firewall.llm.claude import LLMStreamer
+
     with pytest.raises(ImportError, match=r"humanbound-firewall\[anthropic\]"):
         LLMStreamer(_provider(ProviderName.CLAUDE))
 
@@ -130,6 +135,7 @@ def test_claude_missing_dep_raises_actionable(monkeypatch):
 # ────────────────────────────────────────────────────────────────
 # Google Gemini
 # ────────────────────────────────────────────────────────────────
+
 
 def test_gemini_streamer_happy_path(monkeypatch):
     fake = types.ModuleType("google.generativeai")
@@ -150,6 +156,7 @@ def test_gemini_streamer_happy_path(monkeypatch):
 def test_gemini_missing_dep_raises_actionable(monkeypatch):
     monkeypatch.setitem(sys.modules, "google.generativeai", None)
     from humanbound_firewall.llm.gemini import LLMStreamer
+
     with pytest.raises(ImportError, match=r"humanbound-firewall\[gemini\]"):
         LLMStreamer(_provider(ProviderName.GEMINI))
 
@@ -158,6 +165,7 @@ def test_gemini_missing_dep_raises_actionable(monkeypatch):
 # Azure OpenAI
 # ────────────────────────────────────────────────────────────────
 
+
 def test_azure_openai_streamer_happy_path(monkeypatch):
     fake_openai = types.ModuleType("openai")
     fake_openai.AzureOpenAI = MagicMock()
@@ -165,12 +173,14 @@ def test_azure_openai_streamer_happy_path(monkeypatch):
 
     from humanbound_firewall.llm.azureopenai import LLMStreamer
 
-    streamer = LLMStreamer(_provider(
-        ProviderName.AZURE_OPENAI,
-        model="gpt-4o-mini",
-        endpoint="https://example.openai.azure.com",
-        api_version="2024-06-01",
-    ))
+    streamer = LLMStreamer(
+        _provider(
+            ProviderName.AZURE_OPENAI,
+            model="gpt-4o-mini",
+            endpoint="https://example.openai.azure.com",
+            api_version="2024-06-01",
+        )
+    )
     assert streamer.model == "gpt-4o-mini"
     call = fake_openai.AzureOpenAI.call_args
     assert call.kwargs["api_key"] == "sk-test"
@@ -181,6 +191,7 @@ def test_azure_openai_streamer_happy_path(monkeypatch):
 def test_azure_openai_missing_dep_raises_actionable(monkeypatch):
     monkeypatch.setitem(sys.modules, "openai", None)
     from humanbound_firewall.llm.azureopenai import LLMStreamer
+
     with pytest.raises(ImportError, match=r"humanbound-firewall\[openai\]"):
         LLMStreamer(_provider(ProviderName.AZURE_OPENAI))
 
@@ -188,6 +199,7 @@ def test_azure_openai_missing_dep_raises_actionable(monkeypatch):
 # ────────────────────────────────────────────────────────────────
 # Factory routing
 # ────────────────────────────────────────────────────────────────
+
 
 def test_get_llm_streamer_routes_by_provider_name(monkeypatch):
     # Stub all four SDKs so factory can instantiate any provider
@@ -206,18 +218,19 @@ def test_get_llm_streamer_routes_by_provider_name(monkeypatch):
     monkeypatch.setitem(sys.modules, "google.generativeai", gem)
 
     from humanbound_firewall.llm import get_llm_streamer
-    from humanbound_firewall.llm.openai import LLMStreamer as OpenAIStreamer
+    from humanbound_firewall.llm.azureopenai import LLMStreamer as AzureStreamer
     from humanbound_firewall.llm.claude import LLMStreamer as ClaudeStreamer
     from humanbound_firewall.llm.gemini import LLMStreamer as GeminiStreamer
-    from humanbound_firewall.llm.azureopenai import LLMStreamer as AzureStreamer
+    from humanbound_firewall.llm.openai import LLMStreamer as OpenAIStreamer
 
-    assert isinstance(get_llm_streamer(_provider(ProviderName.OPENAI)),       OpenAIStreamer)
-    assert isinstance(get_llm_streamer(_provider(ProviderName.CLAUDE)),       ClaudeStreamer)
-    assert isinstance(get_llm_streamer(_provider(ProviderName.GEMINI)),       GeminiStreamer)
+    assert isinstance(get_llm_streamer(_provider(ProviderName.OPENAI)), OpenAIStreamer)
+    assert isinstance(get_llm_streamer(_provider(ProviderName.CLAUDE)), ClaudeStreamer)
+    assert isinstance(get_llm_streamer(_provider(ProviderName.GEMINI)), GeminiStreamer)
     assert isinstance(get_llm_streamer(_provider(ProviderName.AZURE_OPENAI)), AzureStreamer)
 
 
 def test_get_llm_streamer_rejects_unknown_provider():
     from humanbound_firewall.llm import get_llm_streamer
+
     with pytest.raises(ValueError, match="Unsupported"):
         get_llm_streamer({"name": "unsupported", "integration": {}})

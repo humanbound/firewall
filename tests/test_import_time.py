@@ -6,11 +6,11 @@ Bare `import humanbound_firewall` must not pull in torch, transformers,
 openai, anthropic, or google-generativeai. The lazy `__getattr__` in
 `__init__.py` guarantees that — this test guards against regressions.
 """
+
 from __future__ import annotations
 
 import subprocess
 import sys
-
 
 COLD_IMPORT_BUDGET_MS = 500
 FORBIDDEN_MODULES = (
@@ -45,7 +45,9 @@ def test_cold_import_is_fast_and_minimal():
     )
     assert result.returncode == 0, f"import failed: {result.stderr}"
 
-    lines = {line.split("=", 1)[0]: line.split("=", 1)[1] for line in result.stdout.strip().splitlines()}
+    lines = {
+        line.split("=", 1)[0]: line.split("=", 1)[1] for line in result.stdout.strip().splitlines()
+    }
     elapsed_ms = float(lines["TIME"])
     loaded = lines["LOADED"]
 

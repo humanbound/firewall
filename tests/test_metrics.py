@@ -8,7 +8,6 @@ from humanbound_firewall.metrics import Metrics
 
 
 class TestMetrics:
-
     def test_initial_state(self):
         m = Metrics()
         assert m.total_evaluations == 0

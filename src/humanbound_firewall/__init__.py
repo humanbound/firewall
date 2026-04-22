@@ -11,6 +11,7 @@ Designed for low cold-import cost: importing this module loads only stdlib and
 pydantic-adjacent dependencies. Heavy components (Firewall, HBFW, LLM clients)
 are loaded lazily on first attribute access.
 """
+
 from __future__ import annotations
 
 import sys
@@ -18,21 +19,21 @@ from typing import TYPE_CHECKING
 
 __version__ = "0.2.0"
 
-from .models import EvalResult, AgentConfig, Verdict, Category, Turn, VERDICT_MAP
+from .models import VERDICT_MAP, AgentConfig, Category, EvalResult, Turn, Verdict
 
 _LAZY_ATTRS = {
-    "Firewall":               ".firewall",
-    "AttackDetector":         ".firewall",
+    "Firewall": ".firewall",
+    "AttackDetector": ".firewall",
     "AttackDetectorEnsemble": ".firewall",
-    "Provider":               ".llm",
-    "ProviderIntegration":    ".llm",
-    "ProviderName":           ".llm",
-    "get_llm_pinger":         ".llm",
-    "get_llm_streamer":       ".llm",
-    "HBFW":                   ".hbfw",
-    "load_model_class":       ".hbfw",
-    "save_hbfw":              ".hbfw",
-    "load_hbfw":              ".hbfw",
+    "Provider": ".llm",
+    "ProviderIntegration": ".llm",
+    "ProviderName": ".llm",
+    "get_llm_pinger": ".llm",
+    "get_llm_streamer": ".llm",
+    "HBFW": ".hbfw",
+    "load_model_class": ".hbfw",
+    "save_hbfw": ".hbfw",
+    "load_hbfw": ".hbfw",
 }
 
 
@@ -44,6 +45,7 @@ def __getattr__(name: str):
     """
     if name in _LAZY_ATTRS:
         import importlib
+
         module = importlib.import_module(_LAZY_ATTRS[name], __name__)
         value = getattr(module, name)
         globals()[name] = value
@@ -57,7 +59,8 @@ def __dir__():
 
 if TYPE_CHECKING:
     # Make the lazy names visible to static type checkers and IDEs.
-    from .firewall import Firewall, AttackDetector, AttackDetectorEnsemble
+    from .firewall import AttackDetector, AttackDetectorEnsemble, Firewall
+    from .hbfw import HBFW, load_hbfw, load_model_class, save_hbfw
     from .llm import (
         Provider,
         ProviderIntegration,
@@ -65,7 +68,6 @@ if TYPE_CHECKING:
         get_llm_pinger,
         get_llm_streamer,
     )
-    from .hbfw import HBFW, load_model_class, save_hbfw, load_hbfw
 
 
 __all__ = [

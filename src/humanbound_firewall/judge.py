@@ -3,7 +3,6 @@
 """Judge prompt builder — constructs the system prompt for LLM evaluation."""
 
 from pathlib import Path
-from typing import List, Optional
 
 from .models import AgentConfig, Turn
 
@@ -12,14 +11,22 @@ _PROMPT_TEMPLATE = (Path(__file__).parent / "prompts" / "judge.txt").read_text(e
 
 def build_system_prompt(
     config: AgentConfig,
-    few_shots: Optional[List[dict]] = None,
-    session_turns: Optional[List[Turn]] = None,
+    few_shots: list[dict] | None = None,
+    session_turns: list[Turn] | None = None,
 ) -> str:
     """Build the complete judge system prompt from config, few-shots, and session context."""
 
     # Format intents as bullet lists
-    permitted = "\n".join(f" - {i}" for i in config.permitted_intents) if config.permitted_intents else " - (none defined)"
-    restricted = "\n".join(f" - {i}" for i in config.restricted_intents) if config.restricted_intents else " - (none defined)"
+    permitted = (
+        "\n".join(f" - {i}" for i in config.permitted_intents)
+        if config.permitted_intents
+        else " - (none defined)"
+    )
+    restricted = (
+        "\n".join(f" - {i}" for i in config.restricted_intents)
+        if config.restricted_intents
+        else " - (none defined)"
+    )
 
     # More info section
     more_info = f"**Additional Info:** {config.more_info}" if config.more_info else ""
@@ -42,7 +49,7 @@ def build_system_prompt(
     return prompt
 
 
-def _format_few_shots(few_shots: List[dict]) -> str:
+def _format_few_shots(few_shots: list[dict]) -> str:
     """Format few-shot examples as learned attack patterns."""
     if not few_shots:
         return ""
@@ -59,7 +66,7 @@ def _format_few_shots(few_shots: List[dict]) -> str:
     return "\n".join(lines) if len(lines) > 1 else ""
 
 
-def _format_session_context(turns: Optional[List[Turn]]) -> str:
+def _format_session_context(turns: list[Turn] | None) -> str:
     """Format session turns as conversation context for the judge."""
     if not turns:
         return ""
@@ -67,9 +74,9 @@ def _format_session_context(turns: Optional[List[Turn]]) -> str:
     lines = ["## CONVERSATION CONTEXT (recent turns)\n"]
     for i, turn in enumerate(turns):
         if turn.assistant:
-            lines.append(f"Agent (turn {i+1}): {turn.assistant[:300]}")
+            lines.append(f"Agent (turn {i + 1}): {turn.assistant[:300]}")
         if turn.user:
-            lines.append(f"User (turn {i+1}): {turn.user[:300]}")
+            lines.append(f"User (turn {i + 1}): {turn.user[:300]}")
 
     if len(lines) <= 1:
         return ""
