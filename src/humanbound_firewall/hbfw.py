@@ -19,7 +19,6 @@ import json
 import os
 import tempfile
 import zipfile
-from typing import Optional
 
 MAX_TURNS = 20
 
@@ -27,6 +26,7 @@ MAX_TURNS = 20
 # ---------------------------------------------------------------------------
 # Model loading
 # ---------------------------------------------------------------------------
+
 
 def load_model_class(path: str):
     """Load AgentClassifier class from a Python file or module.
@@ -73,6 +73,7 @@ def load_model_class(path: str):
 # Data extraction
 # ---------------------------------------------------------------------------
 
+
 def format_last_n_turns(conversation: list[dict], n: int = 5) -> str:
     cap = min(n, MAX_TURNS)
     recent = conversation[-cap:]
@@ -88,9 +89,11 @@ def format_last_n_turns(conversation: list[dict], n: int = 5) -> str:
 
 
 def _extract_turns(logs, category_filter, result_filter):
-    filtered = [l for l in logs
-                if category_filter(l.get("test_category") or "")
-                and result_filter(l.get("result") or "")]
+    filtered = [
+        l
+        for l in logs
+        if category_filter(l.get("test_category") or "") and result_filter(l.get("result") or "")
+    ]
     texts = []
     for log in filtered:
         conv = log.get("conversation", [])
@@ -117,15 +120,15 @@ def _extract_turns(logs, category_filter, result_filter):
 
 
 def extract_adversarial_turns(logs):
-    return _extract_turns(logs,
-                          category_filter=lambda c: "adversarial" in c,
-                          result_filter=lambda r: r == "fail")
+    return _extract_turns(
+        logs, category_filter=lambda c: "adversarial" in c, result_filter=lambda r: r == "fail"
+    )
 
 
 def extract_qa_texts(logs):
-    return _extract_turns(logs,
-                          category_filter=lambda c: "adversarial" not in c,
-                          result_filter=lambda r: r == "pass")
+    return _extract_turns(
+        logs, category_filter=lambda c: "adversarial" not in c, result_filter=lambda r: r == "pass"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -187,14 +190,18 @@ def _curate_attack_logs(logs, target=CURATED_TARGET):
     """
     from collections import defaultdict
 
-    failed = [l for l in logs
-              if "adversarial" in (l.get("test_category") or "")
-              and l.get("result") == "fail"]
+    failed = [
+        l
+        for l in logs
+        if "adversarial" in (l.get("test_category") or "") and l.get("result") == "fail"
+    ]
 
     if not failed:
-        passed_adv = [l for l in logs
-                      if "adversarial" in (l.get("test_category") or "")
-                      and l.get("result") == "pass"]
+        passed_adv = [
+            l
+            for l in logs
+            if "adversarial" in (l.get("test_category") or "") and l.get("result") == "pass"
+        ]
         passed_adv.sort(key=lambda l: l.get("confidence", 0), reverse=True)
         return _extract_last_turns(passed_adv[:target])
 
@@ -204,8 +211,9 @@ def _curate_attack_logs(logs, target=CURATED_TARGET):
         buckets[cat].append(log)
 
     for cat in buckets:
-        buckets[cat].sort(key=lambda l: (l.get("severity", 0), l.get("confidence", 0)),
-                          reverse=True)
+        buckets[cat].sort(
+            key=lambda l: (l.get("severity", 0), l.get("confidence", 0)), reverse=True
+        )
 
     allocation = _allocate_stratified(buckets, target)
 
@@ -224,9 +232,11 @@ def _curate_benign_logs(logs, target=CURATED_TARGET, fallback=None):
     """
     from collections import defaultdict
 
-    passed_qa = [l for l in logs
-                 if "adversarial" not in (l.get("test_category") or "")
-                 and l.get("result") == "pass"]
+    passed_qa = [
+        l
+        for l in logs
+        if "adversarial" not in (l.get("test_category") or "") and l.get("result") == "pass"
+    ]
 
     if not passed_qa:
         return fallback[:target] if fallback else []
@@ -301,6 +311,7 @@ def _extract_qa_turns_from_logs(logs):
 # HBFW orchestrator
 # ---------------------------------------------------------------------------
 
+
 class HBFW:
     """Tier 2 orchestrator. Inject your model, the orchestrator does the rest."""
 
@@ -324,9 +335,11 @@ class HBFW:
 
         # Raw logs for conversation-level validation
         adv_logs = [l for l in logs if "adversarial" in (l.get("test_category") or "")]
-        qa_pass_logs = [l for l in logs
-                        if "adversarial" not in (l.get("test_category") or "")
-                        and l.get("result") == "pass"]
+        qa_pass_logs = [
+            l
+            for l in logs
+            if "adversarial" not in (l.get("test_category") or "") and l.get("result") == "pass"
+        ]
 
         return {
             "attack_texts": attack_texts,
@@ -358,7 +371,9 @@ class HBFW:
 
         # Pass curated data if available, full data as fallback
         attack_train = data.get("curated_attack") or data["attack_texts"]
-        benign_train = data.get("curated_benign") or (data["benign_texts"] + data["permitted_texts"])
+        benign_train = data.get("curated_benign") or (
+            data["benign_texts"] + data["permitted_texts"]
+        )
 
         if len(attack_train) >= 5:
             self.clf_attack.train(attack_train, context=context)
@@ -375,13 +390,11 @@ class HBFW:
         adv_logs = data.get("val_adversarial_logs", [])
         ben_logs = data.get("val_benign_logs", [])
         if adv_logs or ben_logs:
-            self._performance["validation"] = self._validate_conversations(
-                adv_logs, ben_logs)
+            self._performance["validation"] = self._validate_conversations(adv_logs, ben_logs)
 
         return self._performance
 
-    def _validate_conversations(self, adversarial_logs, benign_logs,
-                                 min_turns=3):
+    def _validate_conversations(self, adversarial_logs, benign_logs, min_turns=3):
         """Replay conversations through Tier 2 and report catch/allow rates.
 
         Adversarial (all pass+fail): Tier 2 should BLOCK at some point.
@@ -406,8 +419,7 @@ class HBFW:
             # Replay: build conversation progressively, check from min_turns
             caught = False
             for i in range(min_turns, len(conv)):
-                turns = [{"u": t.get("u", ""), "a": t.get("a", "")}
-                         for t in conv[:i + 1]]
+                turns = [{"u": t.get("u", ""), "a": t.get("a", "")} for t in conv[: i + 1]]
                 r = self.classify(turns)
                 if r["decision"] == "BLOCK":
                     caught = True
@@ -428,8 +440,7 @@ class HBFW:
             was_blocked = False
 
             for i in range(min_turns, len(conv)):
-                turns = [{"u": t.get("u", ""), "a": t.get("a", "")}
-                         for t in conv[:i + 1]]
+                turns = [{"u": t.get("u", ""), "a": t.get("a", "")} for t in conv[: i + 1]]
                 r = self.classify(turns)
                 if r["decision"] == "BLOCK":
                     was_blocked = True
@@ -475,15 +486,27 @@ class HBFW:
         is_benign = is_ben_ctx and is_ben_turn
 
         if is_attack and not is_benign:
-            return {"decision": "BLOCK", "reason": "attack",
-                    "attack_probability": round(attack_score, 4), "tier": "2.1"}
+            return {
+                "decision": "BLOCK",
+                "reason": "attack",
+                "attack_probability": round(attack_score, 4),
+                "tier": "2.1",
+            }
         if is_benign and not is_attack:
-            return {"decision": "ALLOW", "reason": "benign",
-                    "attack_probability": round(attack_score, 4), "tier": "2.2"}
+            return {
+                "decision": "ALLOW",
+                "reason": "benign",
+                "attack_probability": round(attack_score, 4),
+                "tier": "2.2",
+            }
 
         reason = "conflicting" if (is_attack and is_benign) else "uncertain"
-        return {"decision": "ESCALATE", "reason": reason,
-                "attack_probability": round(attack_score, 4), "tier": "2"}
+        return {
+            "decision": "ESCALATE",
+            "reason": reason,
+            "attack_probability": round(attack_score, 4),
+            "tier": "2",
+        }
 
     def export(self):
         weights = {}
@@ -507,9 +530,11 @@ class HBFW:
 # .hbfw I/O
 # ---------------------------------------------------------------------------
 
+
 def _require_numpy():
     try:
         import numpy as np
+
         return np
     except ImportError as e:
         raise ImportError(

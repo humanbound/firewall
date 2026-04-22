@@ -2,14 +2,15 @@
 # Copyright (c) 2024-2026 Humanbound
 """Tests for judge prompt builder."""
 
-import pytest
-
+from humanbound_firewall.judge import (
+    _format_few_shots,
+    _format_session_context,
+    build_system_prompt,
+)
 from humanbound_firewall.models import AgentConfig, Turn
-from humanbound_firewall.judge import build_system_prompt, _format_few_shots, _format_session_context
 
 
 class TestBuildSystemPrompt:
-
     def test_includes_business_scope(self):
         config = AgentConfig(business_scope="Online banking")
         prompt = build_system_prompt(config)
@@ -41,7 +42,6 @@ class TestBuildSystemPrompt:
 
 
 class TestFewShots:
-
     def test_empty_returns_empty(self):
         assert _format_few_shots([]) == ""
 
@@ -60,7 +60,6 @@ class TestFewShots:
 
 
 class TestSessionContext:
-
     def test_empty_returns_empty(self):
         assert _format_session_context(None) == ""
         assert _format_session_context([]) == ""

@@ -2,9 +2,10 @@
 # Copyright (c) 2024-2026 Humanbound
 """OpenAI provider."""
 
-import requests
 import time
 from os import getenv
+
+import requests
 
 ALLOWED_MAX_OUT_TOKENS = 4096
 DEFAULT_MAX_OUT_TOKENS = 2048
@@ -28,8 +29,9 @@ class LLMStreamer:
         self.__client = OpenAI(api_key=provider["integration"]["api_key"])
         self.model = provider["integration"]["model"]
 
-    def ping(self, system_p, user_p, max_tokens=DEFAULT_MAX_OUT_TOKENS,
-             temperature=DEFAULT_TEMPERATURE):
+    def ping(
+        self, system_p, user_p, max_tokens=DEFAULT_MAX_OUT_TOKENS, temperature=DEFAULT_TEMPERATURE
+    ):
         max_tokens = min(max_tokens, ALLOWED_MAX_OUT_TOKENS)
         return self.__client.chat.completions.create(
             model=self.model,
@@ -37,8 +39,10 @@ class LLMStreamer:
                 {"role": "system", "content": system_p},
                 {"role": "user", "content": user_p},
             ],
-            max_tokens=max_tokens, temperature=temperature,
-            timeout=LLM_PING_TIMEOUT, stream=True,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=LLM_PING_TIMEOUT,
+            stream=True,
         )
 
 
@@ -59,13 +63,15 @@ class LLMPinger:
                     {"role": "system", "content": system_p},
                     {"role": "user", "content": user_p},
                 ],
-                "max_tokens": max_tokens, "temperature": temperature,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
             },
             timeout=LLM_PING_TIMEOUT,
         )
 
-    def ping(self, system_p, user_p, max_tokens=DEFAULT_MAX_OUT_TOKENS,
-             temperature=DEFAULT_TEMPERATURE):
+    def ping(
+        self, system_p, user_p, max_tokens=DEFAULT_MAX_OUT_TOKENS, temperature=DEFAULT_TEMPERATURE
+    ):
         do_retry_counter = 0
         max_tokens = min(max_tokens, ALLOWED_MAX_OUT_TOKENS)
         while do_retry_counter <= MAX_RETRY_COUNTER:
@@ -94,8 +100,12 @@ class LLMPinger:
 def _resolve(provider):
     """Resolve provider to dict format."""
     if provider is None:
-        return {"integration": {"api_key": getenv("LLM_API_KEY", ""),
-                                "model": getenv("LLM_MODEL", "gpt-4o-mini")}}
+        return {
+            "integration": {
+                "api_key": getenv("LLM_API_KEY", ""),
+                "model": getenv("LLM_MODEL", "gpt-4o-mini"),
+            }
+        }
     if hasattr(provider, "model_dump"):
         return provider.model_dump()
     return provider

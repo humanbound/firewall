@@ -3,7 +3,6 @@
 """LLM provider configuration models."""
 
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -18,8 +17,8 @@ class ProviderName(str, Enum):
 class ProviderIntegration(BaseModel):
     api_key: str
     model: str
-    endpoint: Optional[str] = None
-    api_version: Optional[str] = None
+    endpoint: str | None = None
+    api_version: str | None = None
 
 
 class Provider(BaseModel):

@@ -6,6 +6,7 @@ This stub re-exports everything from humanbound_firewall and emits a
 DeprecationWarning on first import. It will be yanked from PyPI on or
 after 2026-06-20.
 """
+
 import warnings
 
 warnings.warn(

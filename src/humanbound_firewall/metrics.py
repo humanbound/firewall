@@ -3,9 +3,6 @@
 """Evaluation metrics tracker."""
 
 import threading
-import time
-from dataclasses import dataclass, field
-from typing import Dict, List
 
 
 class Metrics:
@@ -18,8 +15,8 @@ class Metrics:
         self._blocked = 0
         self._review = 0
         self._errors = 0
-        self._by_category: Dict[str, int] = {}
-        self._latencies: List[int] = []
+        self._by_category: dict[str, int] = {}
+        self._latencies: list[int] = []
 
     @property
     def total_evaluations(self) -> int:
@@ -42,7 +39,7 @@ class Metrics:
         return self._errors
 
     @property
-    def by_category(self) -> Dict[str, int]:
+    def by_category(self) -> dict[str, int]:
         with self._lock:
             return dict(self._by_category)
 

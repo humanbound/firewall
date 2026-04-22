@@ -19,7 +19,6 @@ Your classifier decides how to process them (embeddings, fine-tuning, NLI, etc).
 
 
 class AgentClassifier:
-
     def __init__(self, name):
         """Called twice: name="attack" and name="benign".
 

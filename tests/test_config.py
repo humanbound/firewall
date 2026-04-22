@@ -2,8 +2,9 @@
 # Copyright (c) 2024-2026 Humanbound
 """Tests for configuration loading."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from humanbound_firewall.config import load_config
 
@@ -11,7 +12,6 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 class TestConfigLoading:
-
     def test_load_valid_config(self):
         config = load_config(FIXTURES / "agent.yaml")
         assert config.name == "Test Banking Agent"

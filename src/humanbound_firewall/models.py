@@ -4,11 +4,11 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
 
 
 class Verdict(str, Enum):
     """Firewall verdict."""
+
     PASS = "pass"
     BLOCK = "block"
     REVIEW = "review"
@@ -16,6 +16,7 @@ class Verdict(str, Enum):
 
 class Category(str, Enum):
     """Block category — why the verdict was block."""
+
     NONE = ""
     OFF_TOPIC = "off_topic"
     VIOLATION = "violation"
@@ -44,7 +45,7 @@ class EvalResult:
     session_id: str = ""
     prompt: str = ""
     raw_letter: str = ""
-    tier: int = 0                    # 0=sanitization, 1=classifier, 2=LLM judge
+    tier: int = 0  # 0=sanitization, 1=classifier, 2=LLM judge
     attack_probability: float = 0.0  # Tier 1 confidence score
 
     @property
@@ -59,6 +60,7 @@ class EvalResult:
 @dataclass
 class Turn:
     """A single conversation turn."""
+
     user: str = ""
     assistant: str = ""
 
@@ -75,16 +77,16 @@ class AgentConfig:
     more_info: str = ""
 
     # Intents
-    permitted_intents: List[str] = field(default_factory=list)
-    restricted_intents: List[str] = field(default_factory=list)
+    permitted_intents: list[str] = field(default_factory=list)
+    restricted_intents: list[str] = field(default_factory=list)
 
     # Settings
     timeout: int = 5
-    mode: str = "block"                 # block | log | passthrough
-    session_window: int = 5             # number of turns for context
-    tier2_min_turns: int = 3            # minimum turns before Tier 2 activates
-    risk_tolerance: str = "medium"      # high | medium | low
+    mode: str = "block"  # block | log | passthrough
+    session_window: int = 5  # number of turns for context
+    tier2_min_turns: int = 3  # minimum turns before Tier 2 activates
+    risk_tolerance: str = "medium"  # high | medium | low
     temperature: float = 0.0
 
     # Few-shot examples
-    few_shots: List[dict] = field(default_factory=list)
+    few_shots: list[dict] = field(default_factory=list)
