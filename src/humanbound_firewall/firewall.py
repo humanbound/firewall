@@ -10,11 +10,14 @@ Tier 3:   LLM-as-a-judge (deep contextual analysis for uncertain cases)
 """
 
 import concurrent.futures
+import logging
 import re
 import time
 from pathlib import Path
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 from .cache import PromptCache
 from .config import load_config
@@ -87,9 +90,10 @@ class AttackDetector:
             if resp.status_code == 200:
                 data = resp.json()
                 return self._extract_score(data)
-        except Exception:
-            pass
-        return 0.0
+        except Exception as e:
+            logger.warning("Detector %s failed: %s", self.name, e)
+            return None
+        return None
 
     def _extract_score(self, data: dict) -> float:
         """Extract score from API response using dot-notation path."""
@@ -117,12 +121,16 @@ class AttackDetectorEnsemble:
             return False, 0.0
 
         scores = []
+        failed = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.detectors)) as pool:
             futures = {pool.submit(d.score, prompt, conversation): d for d in self.detectors}
 
             attack_count = 0
             for future in concurrent.futures.as_completed(futures):
                 score = future.result()
+                if score is None:
+                    failed += 1
+                    continue
                 scores.append(score)
                 if score > 0.5:
                     attack_count += 1
@@ -130,6 +138,13 @@ class AttackDetectorEnsemble:
                         # Early exit — consensus reached
                         pool.shutdown(wait=False, cancel_futures=True)
                         return True, max(scores)
+
+        if failed > 0:
+            logger.warning(
+                "%d/%d Tier 1 detector(s) failed — scores may be incomplete",
+                failed,
+                len(self.detectors),
+            )
 
         max_score = max(scores) if scores else 0.0
         attack_count = sum(1 for s in scores if s > 0.5)
