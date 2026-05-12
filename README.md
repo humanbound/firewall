@@ -22,6 +22,7 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/status-preview-FD9506?style=flat-square" alt="Status: preview"/>
   <a href="https://pypi.org/project/humanbound-firewall/"><img src="https://img.shields.io/pypi/v/humanbound-firewall?style=flat-square&color=FD9506" alt="PyPI version"/></a>
   <a href="https://pypi.org/project/humanbound-firewall/"><img src="https://img.shields.io/pypi/pyversions/humanbound-firewall?style=flat-square&color=FD9506" alt="Python versions"/></a>
   <a href="https://pypi.org/project/humanbound-firewall/"><img src="https://img.shields.io/pypi/dm/humanbound-firewall?style=flat-square&color=FD9506" alt="Downloads"/></a>
@@ -35,6 +36,11 @@
 
 > 📖 **Full documentation** lives at [**docs.humanbound.ai/defense/firewall/**](https://docs.humanbound.ai/defense/firewall/) —
 > this README covers the essentials; the docs have the depth.
+
+> ⚠ **Preview (0.2.x).** The Tier 0–3 contract, `.hbfw` model format,
+> `humanbound_firewall.*` import surface, and `HUMANBOUND_FIREWALL_*` env
+> variable names may change before 1.0. Pin to a specific version if you
+> depend on a particular shape.
 
 ## How It Works
 
