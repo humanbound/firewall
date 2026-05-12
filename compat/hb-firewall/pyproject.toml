@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hb-firewall"
-version = "0.2.0"
+version = "0.2.1"
 description = "DEPRECATED: renamed to humanbound-firewall"
 readme = "README.md"
 license = "Apache-2.0"
@@ -18,7 +18,7 @@ classifiers = [
     "Topic :: Security",
 ]
 dependencies = [
-    "humanbound-firewall==0.2.0",
+    "humanbound-firewall==0.2.1",
 ]
 
 [project.urls]
