@@ -108,3 +108,5 @@ jobs:
             dist/*
             dist-stub/*
           generate_release_notes: false
+          # Mark 0.x releases as pre-release; 1.0+ flip to stable automatically.
+          prerelease: ${{ startsWith(steps.changelog.outputs.tag, 'v0.') }}
