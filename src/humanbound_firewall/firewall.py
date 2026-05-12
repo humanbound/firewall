@@ -10,6 +10,7 @@ Tier 3:   LLM-as-a-judge (deep contextual analysis for uncertain cases)
 """
 
 import concurrent.futures
+import logging
 import re
 import time
 from pathlib import Path
@@ -22,6 +23,8 @@ from .judge import build_system_prompt
 from .llm import Provider, ProviderIntegration, ProviderName, get_llm_streamer
 from .metrics import Metrics
 from .models import AgentConfig, Category, EvalResult, Turn, Verdict
+
+logger = logging.getLogger(__name__)
 
 _INVISIBLE_CHARS = re.compile(
     r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f"
@@ -48,32 +51,38 @@ class AttackDetector:
         self._response_path = config.get("response_path", "")
         self._pipe = None
 
-    def score(self, prompt: str, conversation: str = "") -> float:
-        """Return attack probability 0-1."""
+    def score(self, prompt: str, conversation: str = "") -> float | None:
+        """Return attack probability 0-1, or None if the detector failed."""
         if self._model_name:
             return self._score_local(prompt)
         elif self._endpoint:
             return self._score_api(prompt, conversation)
         return 0.0
 
-    def _score_local(self, prompt: str) -> float:
-        if self._pipe is None:
-            try:
-                from transformers import pipeline
-            except ImportError as e:
-                raise ImportError(
-                    "Tier 1 local detectors require the [tier1] extra. "
-                    "Install with: pip install humanbound-firewall[tier1]"
-                ) from e
-            self._pipe = pipeline(
-                "text-classification", model=self._model_name, truncation=True, max_length=512
-            )
-        result = self._pipe(prompt)[0]
-        if result["label"] in ("INJECTION", "LABEL_1", "positive", "1"):
-            return result["score"]
-        return 1.0 - result["score"]
+    def _score_local(self, prompt: str) -> float | None:
+        try:
+            if self._pipe is None:
+                try:
+                    from transformers import pipeline
+                except ImportError as e:
+                    raise ImportError(
+                        "Tier 1 local detectors require the [tier1] extra. "
+                        "Install with: pip install humanbound-firewall[tier1]"
+                    ) from e
+                self._pipe = pipeline(
+                    "text-classification", model=self._model_name, truncation=True, max_length=512
+                )
+            result = self._pipe(prompt)[0]
+            if result["label"] in ("INJECTION", "LABEL_1", "positive", "1"):
+                return result["score"]
+            return 1.0 - result["score"]
+        except ImportError:
+            raise
+        except Exception as e:
+            logger.warning("Detector %s failed: %s", self.name, e)
+            return None
 
-    def _score_api(self, prompt: str, conversation: str) -> float:
+    def _score_api(self, prompt: str, conversation: str) -> float | None:
         payload = {}
         for k, v in self._payload_template.items():
             if isinstance(v, str):
@@ -87,9 +96,10 @@ class AttackDetector:
             if resp.status_code == 200:
                 data = resp.json()
                 return self._extract_score(data)
-        except Exception:
-            pass
-        return 0.0
+        except Exception as e:
+            logger.warning("Detector %s failed: %s", self.name, e)
+            return None
+        return None
 
     def _extract_score(self, data: dict) -> float:
         """Extract score from API response using dot-notation path."""
@@ -117,12 +127,16 @@ class AttackDetectorEnsemble:
             return False, 0.0
 
         scores = []
+        failed = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.detectors)) as pool:
             futures = {pool.submit(d.score, prompt, conversation): d for d in self.detectors}
 
             attack_count = 0
             for future in concurrent.futures.as_completed(futures):
                 score = future.result()
+                if score is None:
+                    failed += 1
+                    continue
                 scores.append(score)
                 if score > 0.5:
                     attack_count += 1
@@ -130,6 +144,13 @@ class AttackDetectorEnsemble:
                         # Early exit — consensus reached
                         pool.shutdown(wait=False, cancel_futures=True)
                         return True, max(scores)
+
+        if failed > 0:
+            logger.warning(
+                "%d/%d Tier 1 detector(s) failed — scores may be incomplete",
+                failed,
+                len(self.detectors),
+            )
 
         max_score = max(scores) if scores else 0.0
         attack_count = sum(1 for s in scores if s > 0.5)

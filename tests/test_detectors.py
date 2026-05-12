@@ -59,7 +59,7 @@ def test_api_detector_substitutes_prompt_placeholder(monkeypatch):
     assert call.kwargs["json"]["conversation"] == "prior turns"
 
 
-def test_api_detector_returns_zero_on_non_200(monkeypatch):
+def test_api_detector_returns_none_on_non_200(monkeypatch):
     _patch_requests_request(monkeypatch, status_code=500, json_body={})
     det = AttackDetector(
         {
@@ -68,10 +68,10 @@ def test_api_detector_returns_zero_on_non_200(monkeypatch):
             "response_path": "score",
         }
     )
-    assert det.score("hello") == 0.0
+    assert det.score("hello") is None
 
 
-def test_api_detector_handles_network_exception(monkeypatch):
+def test_api_detector_returns_none_on_network_exception(monkeypatch):
     def _boom(*a, **kw):
         raise ConnectionError("network down")
 
@@ -83,7 +83,7 @@ def test_api_detector_handles_network_exception(monkeypatch):
             "response_path": "score",
         }
     )
-    assert det.score("hello") == 0.0
+    assert det.score("hello") is None
 
 
 def test_api_detector_extract_score_handles_missing_path(monkeypatch):
@@ -185,6 +185,29 @@ def test_ensemble_two_votes_satisfy_consensus_two():
     is_attack, score = ens.evaluate("test")
     assert is_attack is True
     assert score == 0.9
+
+
+def test_ensemble_skips_none_scores_and_uses_remaining():
+    # One detector fails (returns None), one scores 0.9 — attack should still be detected.
+    failed = AttackDetector({"name": "broken"})
+    failed.score = lambda prompt, conversation="": None  # type: ignore[assignment]
+    working = _stub_detector(0.9)
+    ens = AttackDetectorEnsemble([failed, working], consensus=1)
+    is_attack, max_score = ens.evaluate("test")
+    assert is_attack is True
+    assert max_score == 0.9
+
+
+def test_ensemble_all_none_returns_not_attack():
+    # All detectors fail — should return False, 0.0 without crashing.
+    failed1 = AttackDetector({"name": "broken1"})
+    failed1.score = lambda prompt, conversation="": None  # type: ignore[assignment]
+    failed2 = AttackDetector({"name": "broken2"})
+    failed2.score = lambda prompt, conversation="": None  # type: ignore[assignment]
+    ens = AttackDetectorEnsemble([failed1, failed2], consensus=1)
+    is_attack, max_score = ens.evaluate("test")
+    assert is_attack is False
+    assert max_score == 0.0
 
 
 # ────────────────────────────────────────────────────────────────
