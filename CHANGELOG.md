@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-05-12
+
+### Fixed
+- **Tier 1 silent fail-open**: `AttackDetector` now surfaces failures
+  instead of returning `0.0` (which the ensemble couldn't distinguish from
+  a genuine "no attack" score). When a detector's HTTP call raises, returns
+  a non-200 response, or its local model errors, `score()` returns `None`.
+  The ensemble skips `None` results and emits a `logging.WARNING` so
+  operators see that the firewall is running with reduced coverage. Failed
+  detectors no longer cast a silent "safe" vote. (#8)
+
+### Changed
+- `AttackDetector.score()`, `_score_api()`, and `_score_local()` now return
+  `float | None` instead of `float`. Code that arithmetically combined
+  detector scores must handle the new sentinel. `_score_local` still
+  re-raises `ImportError` so users get the actionable "install the [tier1]
+  extra" hint. (#8)
+
 ## [0.2.0] — 2026-04-21
 
 ### Changed
@@ -70,6 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Tier 3 judges.
 - YAML-based agent configuration.
 
-[Unreleased]: https://github.com/humanbound/humanbound-firewall/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/humanbound/humanbound-firewall/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/humanbound/humanbound-firewall/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/humanbound/humanbound-firewall/releases/tag/v0.2.0
 [0.1.0]: https://github.com/humanbound/humanbound-firewall/releases/tag/v0.1.0

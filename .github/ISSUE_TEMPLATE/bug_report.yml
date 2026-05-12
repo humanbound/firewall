@@ -15,7 +15,7 @@ body:
     attributes:
       label: humanbound-firewall version
       description: Output of `pip show humanbound-firewall | grep Version`
-      placeholder: "0.2.0"
+      placeholder: "0.2.1"
     validations:
       required: true
 
